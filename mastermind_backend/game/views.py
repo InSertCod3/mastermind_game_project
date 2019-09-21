@@ -4,6 +4,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.template import loader
 from game.models import Game
+from game.tools import sequence_match
 
 
 @api_view(['GET'])
@@ -58,25 +59,25 @@ def make_move(request):
     r_variables = request.GET['variables']  # Url Arg ?game_id=XXXXXXX
 
     G = Game.objects.get(username=r_username, game_id=r_game_id)
-    user_sequence = set(r_variables.split(","))
+    user_sequence = list(r_variables.split(","))
     if len(user_sequence) > 4:
-        session_game_info = {"status": "sequence.too_many_variables", "message": "Revieved too many variables, limit is set to (4)."}
+        session_game_info = {"status": "sequence.too_many_variables", "message": "Received too many variables, limit is set to (4)."}
         return Response(session_game_info, status=status.HTTP_201_CREATED)
-    game_correct_sequence = set(G.sequence.split(","))
-    correct_variables = game_correct_sequence & user_sequence  # Compare sets(...) & get matching numbers
+    game_correct_sequence = G.sequence.split(",")
+    correct_variables = sequence_match(game_correct_sequence, user_sequence)  # Compare sets(...) & get matching numbers
     game_info = {"username": G.username, "retrys": G.retrys, "game_complete": G.game_complete, "game_id": G.game_id}
-    if G.game_complete is True:
+    if G.game_complete is True: # Check if our game completed already.
         session_game_info = {"status": "sequence.completed_already", "message": "Sequence was already solved."}
         return Response({**session_game_info, **game_info}, status=status.HTTP_201_CREATED)
-    if G.retrys >= G.chance_limit: # Retry Limit Reached
-        session_game_info = {"status": "sequence.error.max_retrys", "message": "Max Retrys Reached."}
+    if G.retrys >= G.chance_limit: # Retry Limit Reached.
+        session_game_info = {"status": "sequence.error.max_retrys", "message": "Max Retries Reached."}
         return Response({**session_game_info, **game_info}, status=status.HTTP_201_CREATED)
-    if len(correct_variables) < len(game_correct_sequence):  # Incorrect Sequence
-        G.increments_retrys()
+    if len(correct_variables) < len(game_correct_sequence):  # Incorrect Sequence.
+        G.increments_retrys()  # Increment +1 to our tries.
         session_game_info = {"status": "sequence.error", "message": "Missing Variables.", "correct_variables": correct_variables}
         return Response({**session_game_info, **game_info}, status=status.HTTP_201_CREATED)
     else:
-        G.mark_game_complete()
+        G.mark_game_complete()  # Mark the game as completed
         session_game_info = {"status": "sequence.solved", "message": "Sequence Solved.", "correct_variables": correct_variables}
         return Response({**session_game_info, **game_info}, status=status.HTTP_201_CREATED)
     return Response({"status": "ok", "message": "Unexpected"}, status=status.HTTP_201_CREATED)
