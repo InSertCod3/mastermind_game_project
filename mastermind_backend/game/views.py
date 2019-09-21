@@ -10,7 +10,8 @@ from game.models import Game
 def ping(request):
     """
     Ping the api for availability
-    
+    :::/api/ping
+
     Returns:
         dict -- {"status": "ok"},
     """
